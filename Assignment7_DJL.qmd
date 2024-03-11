@@ -1,0 +1,163 @@
+---
+title: "Assignment7_DaniLafleur"
+format: html
+server: shiny
+---
+
+```{r}
+
+
+install.packages("lidR")
+library(units)
+library(lidR)
+library(terra)
+library(mapview)
+install.packages("RCSF")
+install.packages("sp")
+library(sp)
+library(raster)
+install.packages("gstat")
+library(gstat)
+
+
+las_data <- "C:\\Users\\Danielle\\Downloads\\Danielle Lafleur.las"
+las <- readLAS(las_data)
+las
+
+# points = 2.7612 million points
+num_points <- npoints(las)
+print(num_points)
+#b) 
+max_elevation <- max(las@data$Z)
+print(max_elevation)
+#Max elevation = 1396.1 m
+
+```
+
+#2
+
+```{R}
+if (!requireNamespace("lidR", quietly = TRUE)) {
+    install.packages("lidR")
+}
+
+library(lidR)
+
+#A
+
+las_ground <- classify_ground(las, csf())
+dem_csf_tin <- grid_terrain(las_ground, algorithm = tin())
+
+#B 
+las <- classify_ground(las, pmf(ws = 3, th = 0.15))
+dem_pmf_tin <- grid_terrain(las, algorithm = tin())
+
+#C
+las_csf <- classify_ground(las, csf())
+
+las_csf <- classify_ground(las_ground, csf())
+plot(las_csf)
+
+dem_idw = rasterize_terrain(las_csf, algorithm = knnidw(k = 10, p = 2))
+plot(dem_idw)
+
+#D
+####The Progressive Morphological Filter (PMF) algorithm in LiDAR identifies ground points by applying a series of morphological operations with gradually increasing window sizes, effectively distinguishing ground from non-ground elements by incrementally removing points that are higher than the ground.
+```
+
+```{R}
+#3
+las_norm <- normalize_height(las_ground, algorithm = knnidw(k = 10, p = 2))
+plot(las_norm)
+resolution <- 0.8
+chm_2 <- rasterize_canopy(las_norm, resolution, p2r())
+plot(chm_2)
+
+las_norm_tin <- normalize_height(las_ground, algorithm = tin())
+chm_tin_dsmtin <- grid_canopy(las_norm_tin, 0.5, dsmtin())
+plot(chm_tin_dsmtin)
+
+chm_tin_p2r <- grid_canopy(las_norm_tin, 0.5, p2r())
+plot(chm_tin_p2r)
+
+
+###D
+#The Inverse Distance Weighting (IDW) algorithm is an interpolation method where the values at unknown points are estimated by weighing the values of known points inversely proportional to their distance. Nearer points have a higher influence on the estimate than farther ones. The goal is to smoothly estimate terrain or canopy surfaces based on nearby measured points.
+```
+
+```{R}
+#4
+library(lidR)
+library(terra)
+library(sf)
+
+
+#A 
+treetops <- locate_trees(las_norm_tin, lmf(ws = 5))
+plot(chm_tin_p2r, col = height.colors(50))
+
+ttops <- locate_trees(chm_p2r, lmf(5))
+mapview(ttops)
+
+
+
+algo_dalponte <- dalponte2016(chm = chm_tin_p2r, treetops = treetops)
+las_trees_dalponte <- segment_trees(las_norm_tin, algo_dalponte)
+plot(las_norm_tin, size = 2)
+plot(las_trees_dalponte) 
+
+#B Segment trees using Li 2012 algorithm
+algo_li <- li2012()
+las_trees_li <- segment_trees(las_norm_tin, algo_li, attribute = "IDli")
+plot(las_trees_li, color = "IDli")
+
+#C Segment trees using Silva 2016 algorithm
+algo_silva <- silva2016(chm = chm_tin_p2r, treetops = treetops)
+las_trees_silva <- segment_trees(las_norm_tin, algo_silva)
+plot(las_trees_silva, color = "treeID")
+
+#D #The Silva 2016 algorithm utilizes seed points (aka. treetops) then expands each point's influence area to its nearest neighbors.  This algorithm essentially segments individual trees based on their canopy. The algorithm also considers factors like the maximum crown diameter relative to tree height and excludes pixels below a certain elevation threshold or ground level.
+
+
+
+
+ 
+```
+
+```{R}
+
+install.packages("units")
+library(units)
+install_unit("stems")
+
+ttops <- locate_trees(chm, lmf(5))   
+
+mapview(ttops) 
+plot(ttops) 
+
+?dalponte2016
+las_its_dalponte <- segment_trees(nlas, dalponte2016(chm, ttops))
+plot(las_its_dalponte, color = "treeID")
+
+
+?li2012
+las_its_li <- segment_trees(nlas, li2012())
+plot(las_its_li, color = "treeID")
+
+
+?silva2016
+las_its_silva<- segment_trees(nlas,  algorithm = silva2016(chm, ttops))
+plot(las_its_li, color = "treeID")
+
+#the results
+print(paste("Tree Count (Silva 2016):", tree_count_silva))
+#549 tree count
+print(paste("Tree Density (Silva 2016):", tree_density_silva))
+#0.008 density
+
+
+
+
+```
+
+# 
